@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* No dark-mode variant: these screens live under fluorescent light, one high-contrast
+   theme is easier to read than two mediocre ones. */
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
