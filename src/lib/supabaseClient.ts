@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Device } from "./devices";
+import type { Device } from "./devices.ts";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

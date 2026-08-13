@@ -16,11 +16,41 @@ npm run dev                    # http://localhost:3000
 Run `supabase/schema.sql` in the Supabase SQL editor once. It creates both tables, the
 `active → replaced | expired` trigger, and RLS policies that deliberately grant no `delete`.
 
-## Checks
+## Testing
+
+Three layers, cheapest first.
+
+**1. Unit — no database, runs in under a second.** `node --test` over the pure logic: date
+math, the traffic light, Zod boundaries, cron auth, the 7-day throttle, and the email
+template (aggregation, escaping, and that no PHI can reach the payload).
 
 ```bash
-npm test && npm run typecheck && npm run lint && npm run build
+npm test
+npm run typecheck && npm run lint && npm run build   # the other three checks
 ```
+
+**2. Smoke — needs a live Supabase and a running server.** Covers what unit tests cannot:
+unique serials, the shift-change race, and cron auth against the real routes.
+
+```bash
+npm run dev      # terminal 1
+npm run smoke    # terminal 2
+```
+
+It registers a device, re-posts the same serial (expects 409), moves its room, fires two
+simultaneous "mark replaced" requests and asserts exactly one 200 and one 409, then checks the
+cron route refuses an unauthenticated call. The authorized cron run is skipped by default
+because it emails the team lead for real — opt in with `SMOKE_SEND_EMAIL=1`. The test device is
+left behind as `replaced`; the ledger has no delete.
+
+**3. By hand, at `localhost:3000`.** The parts a script can't judge:
+
+- Pick a category → the expiry date moves by that shelf life (bed sensor = install + 90 days), and stays editable.
+- Register a device dated within 30 days → amber `EXPIRING` pill; date in the past → red `EXPIRED`. Icon and word change too, not just colour.
+- Search by room, serial, or device name; filter by category; page through at 10 rows.
+- Stop the dev server, then submit the form → a red modal you must acknowledge, not a silent failure. (Same for DevTools → Network → Offline.)
+- Open two browser tabs, mark the same device replaced in both → the second one raises the modal instead of double-logging.
+- Zoom the browser to 150% and check nothing clips — that is roughly a med cart monitor.
 
 ## Cron
 

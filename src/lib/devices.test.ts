@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addDays, daysUntil, expiryFor, health, NewDevice } from "./devices.ts";
+import { addDays, daysUntil, DeviceUpdate, expiryFor, health, NewDevice } from "./devices.ts";
 
 test("addDays crosses months, years and leap days", () => {
   assert.equal(addDays("2026-08-13", 90), "2026-11-11");
@@ -24,6 +24,34 @@ test("health is the traffic light", () => {
   assert.equal(health({ expiry_date: "2026-09-12", status: "active" }, t), "soon"); // 30 days
   assert.equal(health({ expiry_date: "2026-08-12", status: "active" }, t), "expired");
   assert.equal(health({ expiry_date: "2099-01-01", status: "replaced" }, t), "replaced");
+});
+
+test("health boundaries: 31 days is still green, expiry day itself is not yet red", () => {
+  const t = "2026-08-13";
+  assert.equal(health({ expiry_date: "2026-09-13", status: "active" }, t), "ok", "31 days out");
+  assert.equal(health({ expiry_date: "2026-09-12", status: "active" }, t), "soon", "30 days out");
+  assert.equal(health({ expiry_date: t, status: "active" }, t), "soon", "expires today");
+  // A row still marked active but past its date reads as expired: the cron may not have run.
+  assert.equal(health({ expiry_date: "2026-08-12", status: "active" }, t), "expired");
+  assert.equal(health({ expiry_date: "2026-08-12", status: "expired" }, t), "expired");
+});
+
+test("every category has a shelf life that lands in the future", () => {
+  for (const category of ["bed_sensor", "floor_mat", "chair_alarm", "grab_bar", "hip_protector"] as const) {
+    assert.ok(expiryFor(category, "2026-08-13") > "2026-08-13", category);
+  }
+});
+
+test("DeviceUpdate guards the PATCH boundary", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  assert.equal(DeviceUpdate.safeParse({ id, status: "replaced" }).success, true);
+  // Room shuffle: a resident moves, the device keeps its id, install and expiry dates.
+  assert.equal(DeviceUpdate.safeParse({ id, room_number: "310-A" }).success, true);
+  assert.equal(DeviceUpdate.safeParse({ id }).success, false, "no-op update");
+  assert.equal(DeviceUpdate.safeParse({ id, status: "active" }).success, false, "no resurrection");
+  assert.equal(DeviceUpdate.safeParse({ id, status: "deleted" }).success, false);
+  assert.equal(DeviceUpdate.safeParse({ id: "not-a-uuid", status: "replaced" }).success, false);
+  assert.equal(DeviceUpdate.safeParse({ id, room_number: "" }).success, false);
 });
 
 test("NewDevice rejects junk payloads", () => {
