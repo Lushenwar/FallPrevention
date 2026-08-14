@@ -6,7 +6,7 @@ create extension if not exists pgcrypto;
 create table if not exists devices (
   id            uuid primary key default gen_random_uuid(),
   device_name   text not null,
-  serial_number text not null unique,
+  serial_number text not null,
   category      text not null check (category in
                   ('bed_sensor','floor_mat','chair_alarm','grab_bar','hip_protector')),
   room_number   text not null,
@@ -19,6 +19,15 @@ create table if not exists devices (
 
 -- Hot path for the cron sweep and the dashboard.
 create index if not exists devices_status_expiry_idx on devices (status, expiry_date);
+
+-- A serial identifies a physical unit, so two devices *on the floor* may not share one.
+-- Deliberately NOT a plain `unique` on the column: this ledger never deletes, so a global
+-- constraint would make every serial single-use and leave a mis-clicked "Mark replaced"
+-- permanently unregisterable — an untracked device, which is the failure this system exists
+-- to prevent. Replaced rows keep their serial in history but release the live claim on it.
+create unique index if not exists devices_serial_live_idx
+  on devices (serial_number)
+  where status <> 'replaced';
 
 create table if not exists alert_logs (
   id        uuid primary key default gen_random_uuid(),

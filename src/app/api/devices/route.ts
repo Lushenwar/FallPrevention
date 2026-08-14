@@ -25,12 +25,27 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    // 23505 = unique_violation on serial_number: the nurse double-submitted on flaky Wi-Fi.
-    const duplicate = error.code === "23505";
-    return Response.json(
-      { error: duplicate ? "That serial number is already registered." : error.message },
-      { status: duplicate ? 409 : 500 },
-    );
+    // 23505 = unique_violation: another device still in service already claims this serial
+    // (a double-submit on flaky Wi-Fi, or a genuine mix-up). Replaced devices release their
+    // claim, so this only fires against something actually on the floor.
+    if (error.code === "23505") {
+      // "Already registered" is true but useless mid-round — say which room to go look at.
+      const { data: holder } = await supabase
+        .from("devices")
+        .select("room_number")
+        .eq("serial_number", parsed.data.serial_number)
+        .neq("status", "replaced")
+        .maybeSingle();
+      return Response.json(
+        {
+          error: holder
+            ? `Serial ${parsed.data.serial_number} is already in service in room ${holder.room_number}. Mark that device replaced before registering this serial again.`
+            : `Serial ${parsed.data.serial_number} is already registered.`,
+        },
+        { status: 409 },
+      );
+    }
+    return Response.json({ error: error.message }, { status: 500 });
   }
   return Response.json({ data }, { status: 201 });
 }
