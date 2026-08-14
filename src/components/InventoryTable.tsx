@@ -12,10 +12,34 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { CATEGORIES, daysUntil, health, todayISO, type Device } from "@/lib/devices";
 
 const PAGE_SIZE = 10;
+const SKIP_WARNING_KEY = "fp:skip-replace-warning";
+
+// localStorage is an external store, so it's read through useSyncExternalStore rather than
+// mirrored into state in an effect. That keeps the server snapshot (false) authoritative
+// during hydration instead of rendering one tree and immediately replacing it.
+let skipListeners: (() => void)[] = [];
+
+function subscribeSkip(onChange: () => void) {
+  skipListeners.push(onChange);
+  // Another tab or another cart window turning the warning back on should apply here too.
+  window.addEventListener("storage", onChange);
+  return () => {
+    skipListeners = skipListeners.filter((l) => l !== onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+const getSkip = () => localStorage.getItem(SKIP_WARNING_KEY) === "1";
+
+function setSkip(value: boolean) {
+  if (value) localStorage.setItem(SKIP_WARNING_KEY, "1");
+  else localStorage.removeItem(SKIP_WARNING_KEY);
+  skipListeners.forEach((l) => l());
+}
 
 // Three signals per status, not one: fill colour, icon silhouette (round / triangle /
 // octagon — distinguishable with no colour at all), and a word. Glare kills colour,
@@ -59,9 +83,19 @@ export default function InventoryTable({
   const [page, setPage] = useState(0);
   // Marking replaced is irreversible: the DB guard refuses every transition out of
   // 'replaced'. No undo is possible, so the confirmation has to come first.
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<Device | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [dontAsk, setDontAsk] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const today = todayISO();
+  const skipWarning = useSyncExternalStore(subscribeSkip, getSkip, () => false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (confirming && !dialog.open) dialog.showModal();
+    if (!confirming && dialog.open) dialog.close();
+  }, [confirming]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -81,14 +115,29 @@ export default function InventoryTable({
   const rows = matches.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
   const filtered = query.trim() !== "" || category !== "all";
 
-  async function confirmReplace(device: Device) {
+  async function runReplace(device: Device) {
+    setConfirming(null);
     setPending(device.id);
     try {
       await onReplace(device);
     } finally {
       setPending(null);
-      setConfirming(null);
     }
+  }
+
+  function requestReplace(device: Device) {
+    if (skipWarning) return void runReplace(device);
+    setDontAsk(false);
+    setConfirming(device);
+  }
+
+  function confirmFromDialog(device: Device) {
+    if (dontAsk) setSkip(true);
+    void runReplace(device);
+  }
+
+  function restoreWarning() {
+    setSkip(false);
   }
 
   return (
@@ -201,39 +250,14 @@ export default function InventoryTable({
                     </span>
                   </td>
                   <td data-label="Action">
-                    {device.status === "replaced" ? null : confirming === device.id ? (
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        {/* "No undo" stays visible — the warning is the point of this step —
-                            but trimmed to fit the reserved column on a single line. */}
-                        <span className="font-mono text-xs font-bold text-danger">No undo</span>
-                        <button
-                          onClick={() => confirmReplace(device)}
-                          disabled={isPending}
-                          title="Permanently mark this device replaced — this cannot be undone"
-                          className="btn btn-danger btn-sm"
-                        >
-                          {isPending ? (
-                            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-                          ) : (
-                            <PackageCheck className="size-4" aria-hidden />
-                          )}
-                          {isPending ? "Saving…" : "Confirm"}
-                        </button>
-                        <button
-                          onClick={() => setConfirming(null)}
-                          disabled={isPending}
-                          aria-label="Cancel — leave this device active"
-                          className="btn btn-secondary btn-sm"
-                        >
-                          <X className="size-4" aria-hidden />
-                        </button>
-                      </span>
-                    ) : (
+                    {device.status === "replaced" ? null : (
                       <button
-                        onClick={() => setConfirming(device.id)}
+                        onClick={() => requestReplace(device)}
+                        disabled={isPending}
                         className="btn btn-secondary btn-sm whitespace-nowrap"
                       >
-                        Mark replaced
+                        {isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+                        {isPending ? "Saving…" : "Mark replaced"}
                       </button>
                     )}
                   </td>
@@ -295,6 +319,74 @@ export default function InventoryTable({
           <ChevronRight className="size-5" aria-hidden />
         </button>
       </div>
+
+      {/* Suppressing a warning about an irreversible action must not be a one-way door,
+          so the way back is offered exactly when it is relevant. */}
+      {skipWarning && (
+        <div className="flex flex-wrap items-center gap-2 border-t-2 border-rule px-4 py-3">
+          <TriangleAlert className="size-4 shrink-0 text-warn" aria-hidden />
+          <span className="text-sm font-semibold">Replacement warnings are off.</span>
+          <button onClick={restoreWarning} className="text-sm font-bold underline underline-offset-2">
+            Turn them back on
+          </button>
+        </div>
+      )}
+
+      <dialog
+        ref={dialogRef}
+        onClose={() => setConfirming(null)}
+        aria-labelledby="replace-title"
+        className="animate-pop m-auto w-[min(30rem,calc(100vw-2rem))] border-4 border-danger bg-paper p-0 text-ink backdrop:bg-ink/70"
+      >
+        {confirming && (
+          <div className="p-6">
+            <h2 id="replace-title" className="flex items-center gap-3 text-xl font-bold text-danger">
+              <OctagonAlert className="size-7 shrink-0" aria-hidden />
+              This cannot be undone
+            </h2>
+            <p className="mt-4 font-medium">
+              Marking a device replaced is permanent. The ledger is an audit record, so the entry
+              can never be reopened or edited afterwards.
+            </p>
+            {/* Structural identifiers only — never resident names or diagnoses. */}
+            <dl className="mt-4 border-2 border-rule bg-bone p-3 font-mono text-sm">
+              <div className="flex gap-2">
+                <dt className="w-16 font-bold text-ink-soft">Room</dt>
+                <dd className="font-bold">{confirming.room_number}</dd>
+              </div>
+              <div className="mt-1 flex gap-2">
+                <dt className="w-16 font-bold text-ink-soft">Device</dt>
+                <dd>{CATEGORIES[confirming.category].label}</dd>
+              </div>
+              <div className="mt-1 flex gap-2">
+                <dt className="w-16 font-bold text-ink-soft">Serial</dt>
+                <dd>{confirming.serial_number}</dd>
+              </div>
+            </dl>
+
+            <label className="mt-4 flex items-center gap-3 font-medium">
+              <input
+                type="checkbox"
+                checked={dontAsk}
+                onChange={(e) => setDontAsk(e.target.checked)}
+                className="size-5 shrink-0 accent-[var(--color-danger)]"
+              />
+              Don&apos;t show this again on this device
+            </label>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button onClick={() => confirmFromDialog(confirming)} className="btn btn-danger flex-1">
+                <PackageCheck className="size-5" aria-hidden />
+                Mark replaced
+              </button>
+              <button onClick={() => setConfirming(null)} className="btn btn-secondary flex-1">
+                <X className="size-5" aria-hidden />
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
     </section>
   );
 }

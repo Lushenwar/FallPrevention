@@ -319,10 +319,10 @@ body {
   .ledger td::before {
     display: none;
   }
-  /* Reserved up front so swapping "Mark replaced" for the confirm controls can't
-     resize the column and wrap every other cell onto a second line. */
+  /* Reserved up front so the button changing to "Saving…" can't resize the column and
+     wrap every other cell in the row onto a second line. */
   .ledger td[data-label="Action"],
   .ledger th:last-child {
-    width: 15rem;
+    width: 11rem;
   }
 }
