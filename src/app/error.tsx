@@ -6,7 +6,6 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-6">
       <section className="panel panel-danger animate-rise">
-        <div className="hazard-rule" aria-hidden />
         <div className="p-6 sm:p-8">
           <h2 className="flex items-center gap-3 text-2xl font-bold text-danger sm:text-3xl">
             <OctagonAlert className="size-9 shrink-0" aria-hidden />
