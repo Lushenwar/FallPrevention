@@ -39,8 +39,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <p className="font-mono text-sm tracking-wide text-paper/80">Device Ledger</p>
           </div>
         </header>
-        {/* Equipment-label vocabulary: the same stripe that lives on the hardware. */}
-        <div className="hazard-rule" aria-hidden />
         {children}
       </body>
     </html>

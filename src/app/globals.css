@@ -70,18 +70,6 @@ body {
   border-radius: 1px;
 }
 
-/* --- Hazard stripe ---------------------------------------------------------
-   The one decorative element, and it earns its place: this is equipment-label
-   vocabulary, the same stripe that lives on the devices being tracked. */
-.hazard-rule {
-  height: 6px;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    var(--color-hazard) 0 12px,
-    var(--color-ink) 12px 24px
-  );
-}
-
 @layer components {
   /* --- Panels ---------------------------------------------------------------- */
   .panel {
@@ -330,5 +318,11 @@ body {
   }
   .ledger td::before {
     display: none;
+  }
+  /* Reserved up front so swapping "Mark replaced" for the confirm controls can't
+     resize the column and wrap every other cell onto a second line. */
+  .ledger td[data-label="Action"],
+  .ledger th:last-child {
+    width: 15rem;
   }
 }
