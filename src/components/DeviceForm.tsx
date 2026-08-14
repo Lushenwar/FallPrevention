@@ -1,12 +1,16 @@
 "use client";
 
-import { CirclePlus, LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { CircleCheck, CirclePlus, LoaderCircle, ClipboardList } from "lucide-react";
+import { useEffect, useState } from "react";
 import { CATEGORIES, expiryFor, todayISO, type Category, type Device } from "@/lib/devices";
 
-const field =
-  "w-full rounded-md border-2 border-slate-400 bg-white px-3 py-3 text-lg font-medium text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700";
-const label = "block text-base font-bold text-slate-900";
+type FieldName = "device_name" | "serial_number" | "room_number";
+
+const REQUIRED: Record<FieldName, string> = {
+  device_name: "Enter the device name printed on the unit.",
+  serial_number: "Enter the serial number from the hardware label.",
+  room_number: "Enter the room this device is installed in.",
+};
 
 export default function DeviceForm({
   onCreated,
@@ -20,6 +24,15 @@ export default function DeviceForm({
   // Auto-calculated from category + install date; staff can still override a vendor exception.
   const [expiryDate, setExpiryDate] = useState(expiryFor("bed_sensor", todayISO()));
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
+  const [saved, setSaved] = useState<string | null>(null);
+
+  // Success feedback has to outlast a glance away from the cart.
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(null), 5000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   function recalc(next: { category?: Category; installDate?: string }) {
     const c = next.category ?? category;
@@ -27,6 +40,17 @@ export default function DeviceForm({
     setCategory(c);
     setInstallDate(i);
     setExpiryDate(expiryFor(c, i));
+  }
+
+  // Validate on blur, never per keystroke — nagging someone mid-serial is how you get
+  // an abandoned form. Once a field has errored, it re-checks as they fix it.
+  function validate(name: FieldName, value: string) {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (value.trim() === "") next[name] = REQUIRED[name];
+      else delete next[name];
+      return next;
+    });
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -45,6 +69,8 @@ export default function DeviceForm({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Save failed (${response.status})`);
       onCreated(payload.data);
+      setSaved(`${payload.data.serial_number} → room ${payload.data.room_number}`);
+      setErrors({});
       form.reset();
       recalc({ installDate: todayISO() });
     } catch (error) {
@@ -58,98 +84,175 @@ export default function DeviceForm({
     }
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-4 rounded-lg border-2 border-slate-300 bg-white p-5">
-      <h2 className="text-xl font-black text-slate-900">Register device</h2>
+  const shelfLife = CATEGORIES[category].shelfLifeDays;
 
-      <div>
-        <label className={label} htmlFor="category">
-          Category
-        </label>
-        <select
-          id="category"
-          name="category"
-          className={field}
-          value={category}
-          onChange={(e) => recalc({ category: e.target.value as Category })}
-        >
-          {Object.entries(CATEGORIES).map(([value, { label: text, shelfLifeDays }]) => (
-            <option key={value} value={value}>
-              {text} ({shelfLifeDays}d)
-            </option>
-          ))}
-        </select>
+  return (
+    <form onSubmit={submit} noValidate className="panel h-fit">
+      <div className="panel-head">
+        <ClipboardList className="size-4" aria-hidden />
+        Register device
       </div>
 
-      <div>
-        <label className={label} htmlFor="device_name">
-          Device name
-        </label>
-        <input
-          id="device_name"
+      <div className="space-y-4 p-4">
+        <div>
+          <label className="label" htmlFor="category">
+            Category
+          </label>
+          <select
+            id="category"
+            name="category"
+            className="field"
+            value={category}
+            onChange={(e) => recalc({ category: e.target.value as Category })}
+            aria-describedby="category-hint"
+          >
+            {Object.entries(CATEGORIES).map(([value, { label: text, shelfLifeDays }]) => (
+              <option key={value} value={value}>
+                {text} ({shelfLifeDays}d)
+              </option>
+            ))}
+          </select>
+          <p id="category-hint" className="mt-1.5 font-mono text-xs font-semibold text-ink-soft">
+            {shelfLife}-day shelf life — expiry below is calculated from it.
+          </p>
+        </div>
+
+        <Field
           name="device_name"
-          required
-          maxLength={120}
+          label="Device name"
+          error={errors.device_name}
+          onValidate={validate}
           key={category}
           defaultValue={CATEGORIES[category].label}
-          className={field}
+          maxLength={120}
         />
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={label} htmlFor="serial_number">
-            Serial number
-          </label>
-          <input id="serial_number" name="serial_number" required maxLength={64} className={field} />
-        </div>
-        <div>
-          <label className={label} htmlFor="room_number">
-            Room
-          </label>
-          <input id="room_number" name="room_number" required maxLength={20} className={field} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={label} htmlFor="install_date">
-            Installed
-          </label>
-          <input
-            id="install_date"
-            name="install_date"
-            type="date"
-            required
-            className={field}
-            value={installDate}
-            onChange={(e) => recalc({ installDate: e.target.value })}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            name="serial_number"
+            label="Serial number"
+            error={errors.serial_number}
+            onValidate={validate}
+            maxLength={64}
+            mono
+            hint="From the hardware label"
+          />
+          <Field
+            name="room_number"
+            label="Room"
+            error={errors.room_number}
+            onValidate={validate}
+            maxLength={20}
+            mono
+            hint="e.g. 204-B"
           />
         </div>
-        <div>
-          <label className={label} htmlFor="expiry_date">
-            Expires
-          </label>
-          <input
-            id="expiry_date"
-            name="expiry_date"
-            type="date"
-            required
-            className={field}
-            value={expiryDate}
-            onChange={(e) => setExpiryDate(e.target.value)}
-          />
-        </div>
-      </div>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-800 px-4 py-4 text-lg font-black text-white hover:bg-blue-900 disabled:bg-slate-500"
-      >
-        {saving ? <LoaderCircle className="size-6 animate-spin" /> : <CirclePlus className="size-6" />}
-        {saving ? "Saving…" : "Add to inventory"}
-      </button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="install_date">
+              Installed
+            </label>
+            <input
+              id="install_date"
+              name="install_date"
+              type="date"
+              required
+              className="field font-mono tnum"
+              value={installDate}
+              onChange={(e) => recalc({ installDate: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="expiry_date">
+              Expires
+            </label>
+            <input
+              id="expiry_date"
+              name="expiry_date"
+              type="date"
+              required
+              className="field font-mono tnum"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              aria-describedby="expiry-hint"
+            />
+            <p id="expiry-hint" className="mt-1.5 font-mono text-xs font-semibold text-ink-soft">
+              Auto-set. Override for a vendor exception.
+            </p>
+          </div>
+        </div>
+
+        <button type="submit" disabled={saving} className="btn btn-primary w-full">
+          {saving ? (
+            <LoaderCircle className="size-5 animate-spin" aria-hidden />
+          ) : (
+            <CirclePlus className="size-5" aria-hidden />
+          )}
+          {saving ? "Saving…" : "Add to inventory"}
+        </button>
+
+        <p aria-live="polite" className="min-h-0">
+          {saved && (
+            <span className="animate-rise flex items-start gap-2 border-2 border-safe bg-safe-fill p-3 text-sm font-semibold text-safe">
+              <CircleCheck className="size-5 shrink-0" aria-hidden />
+              <span>
+                Added to the ledger.
+                <span className="mt-0.5 block font-mono text-xs">{saved}</span>
+              </span>
+            </span>
+          )}
+        </p>
+      </div>
     </form>
+  );
+}
+
+function Field({
+  name,
+  label,
+  error,
+  onValidate,
+  hint,
+  mono,
+  ...input
+}: {
+  name: FieldName;
+  label: string;
+  error?: string;
+  onValidate: (name: FieldName, value: string) => void;
+  hint?: string;
+  mono?: boolean;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  const describedBy = [error ? `${name}-error` : null, hint ? `${name}-hint` : null]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div>
+      <label className="label" htmlFor={name}>
+        {label}
+      </label>
+      <input
+        {...input}
+        id={name}
+        name={name}
+        required
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        onBlur={(e) => onValidate(name, e.target.value)}
+        onChange={(e) => error && onValidate(name, e.target.value)}
+        className={`field ${mono ? "font-mono" : ""}`}
+      />
+      {error ? (
+        <p id={`${name}-error`} className="mt-1.5 text-xs font-bold text-danger">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${name}-hint`} className="mt-1.5 font-mono text-xs font-semibold text-ink-soft">
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { CircleAlert, TriangleAlert, X } from "lucide-react";
-import { useState } from "react";
+import { CircleCheck, OctagonAlert, TriangleAlert, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import DeviceForm from "@/components/DeviceForm";
 import InventoryTable from "@/components/InventoryTable";
 import { health, todayISO, type Device } from "@/lib/devices";
@@ -9,6 +9,17 @@ import { health, todayISO, type Device } from "@/lib/devices";
 export default function Dashboard({ initial }: { initial: Device[] }) {
   const [devices, setDevices] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // Native <dialog> rather than a hand-rolled overlay: focus trapping, Escape, and
+  // inert background content are all platform behaviour, and all three are things a
+  // bespoke modal usually gets wrong.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (error && !dialog.open) dialog.showModal();
+    if (!error && dialog.open) dialog.close();
+  }, [error]);
 
   async function reload() {
     const response = await fetch("/api/devices", { signal: AbortSignal.timeout(15_000) });
@@ -44,61 +55,79 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Devices tracked" value={devices.length} tone="bg-white border-slate-400" />
-        <Stat
-          label="Expiring within 30 days"
+    <main className="mx-auto w-full max-w-[90rem] flex-1 space-y-5 p-4 sm:p-6">
+      {/* Readout strip — the one thing that must be legible from across the corridor. */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Readout label="Devices tracked" value={devices.length} Icon={CircleCheck} tone="neutral" />
+        <Readout
+          label="Expiring ≤ 30 days"
           value={counts.soon}
-          tone="bg-amber-100 border-amber-700"
           Icon={TriangleAlert}
+          tone={counts.soon > 0 ? "warn" : "neutral"}
         />
-        <Stat label="Expired" value={counts.expired} tone="bg-red-100 border-red-700" Icon={CircleAlert} />
+        <Readout
+          label="Expired"
+          value={counts.expired}
+          Icon={OctagonAlert}
+          tone={counts.expired > 0 ? "danger" : "neutral"}
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[24rem_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[22rem_1fr] xl:grid-cols-[24rem_1fr]">
         <DeviceForm onCreated={(device) => setDevices((c) => [device, ...c])} onError={setError} />
         <InventoryTable devices={devices} onReplace={replace} />
       </div>
 
       {/* Failures must be acknowledged, never swallowed — a missed save is a missed replacement. */}
-      {error && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-6">
-          <div role="alertdialog" aria-modal className="max-w-lg rounded-lg border-4 border-red-700 bg-white p-6">
-            <h2 className="flex items-center gap-3 text-2xl font-black text-red-800">
-              <CircleAlert className="size-8" /> Action failed
-            </h2>
-            <p className="mt-4 text-lg font-semibold text-slate-900">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-red-700 px-4 py-4 text-lg font-black text-white hover:bg-red-800"
-            >
-              <X className="size-6" /> I understand
-            </button>
-          </div>
+      <dialog
+        ref={dialogRef}
+        onClose={() => setError(null)}
+        aria-labelledby="failure-title"
+        className="animate-pop m-auto w-[min(32rem,calc(100vw-2rem))] border-4 border-danger bg-paper p-0 text-ink backdrop:bg-ink/70"
+      >
+        <div className="hazard-rule" aria-hidden />
+        <div className="p-6">
+          <h2 id="failure-title" className="flex items-center gap-3 text-2xl font-bold text-danger">
+            <OctagonAlert className="size-8 shrink-0" aria-hidden />
+            Action failed
+          </h2>
+          <p className="mt-4 text-lg font-medium">{error}</p>
+          <p className="mt-2 font-mono text-sm font-semibold text-ink-soft">
+            Nothing was saved. Re-check the device before you walk away from it.
+          </p>
+          <button onClick={() => setError(null)} className="btn btn-danger mt-6 w-full">
+            <X className="size-5" aria-hidden />
+            I understand
+          </button>
         </div>
-      )}
+      </dialog>
     </main>
   );
 }
 
-function Stat({
+const TONES = {
+  neutral: "bg-paper border-rule-hard",
+  warn: "bg-warn-fill border-warn text-warn",
+  danger: "bg-danger-fill border-danger text-danger",
+} as const;
+
+function Readout({
   label,
   value,
-  tone,
   Icon,
+  tone,
 }: {
   label: string;
   value: number;
-  tone: string;
-  Icon?: typeof TriangleAlert;
+  Icon: typeof TriangleAlert;
+  tone: keyof typeof TONES;
 }) {
   return (
-    <div className={`flex items-center gap-4 rounded-lg border-2 p-5 ${tone}`}>
-      {Icon && <Icon className="size-9 text-slate-900" />}
-      <div>
-        <p className="text-4xl font-black text-slate-900">{value}</p>
-        <p className="text-lg font-bold text-slate-900">{label}</p>
+    <div className={`animate-rise flex items-center gap-4 border-2 p-4 ${TONES[tone]}`}>
+      <Icon className="size-8 shrink-0" aria-hidden />
+      <div className="min-w-0">
+        <p className="font-mono text-4xl leading-none font-bold tnum">{value}</p>
+        <p className="mt-1.5 text-[0.6875rem] font-bold tracking-[0.12em] uppercase">{label}</p>
       </div>
     </div>
   );
