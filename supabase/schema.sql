@@ -30,7 +30,12 @@ create index if not exists alert_logs_device_sent_idx on alert_logs (device_id, 
 
 -- Append-only ledger: a device may only leave 'active'. Enforced here rather than in
 -- app code so a stray SQL console can't rewrite history either.
-create or replace function devices_status_guard() returns trigger as $$
+-- `set search_path = ''` pins resolution so a role-local search_path can't shadow the
+-- names this guard relies on. It touches no tables, so an empty path costs nothing.
+create or replace function devices_status_guard() returns trigger
+  language plpgsql
+  set search_path = ''
+as $$
 begin
   if old.status <> 'active' and new.status <> old.status then
     raise exception 'device % is % and cannot transition to %', old.id, old.status, new.status;
@@ -38,7 +43,7 @@ begin
   new.updated_at := now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists devices_status_guard_trg on devices;
 create trigger devices_status_guard_trg before update on devices

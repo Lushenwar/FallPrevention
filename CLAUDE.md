@@ -17,12 +17,26 @@ No direct commits to `main`. Every change goes: `git checkout -b <branch>` → c
 ║  Phase 3: Event-Driven Alerting Engine          [x]      ║
 ╚══════════════════════════════════════════════════════════╝
 
-Phase: Built, pending a live Supabase project.
-Status: Next.js 16 + Tailwind 4 app is in place. `supabase/schema.sql` holds the DDL, the
-`active → replaced | expired` trigger and delete-free RLS policies — **run it once in the
-Supabase SQL editor**; nothing has been applied to a live project yet. `npm test && npm run
-typecheck && npm run lint && npm run build` all pass. Remaining before clinical use: create the
-Supabase project, populate `.env.local`, and verify DKIM/SPF on the Resend sending domain.
+Phase: Live against Supabase, verified end-to-end locally. Not yet deployed.
+Status: Supabase project `igymnbvuxndibsenjikb` (org `FallPrevention`, us-east-1) is live and
+`supabase/schema.sql` is applied. Verified against it: GET/POST `/api/devices` round-trip, cron
+401s without the bearer token, a real Resend alert delivered, the 7-day throttle suppressing the
+immediate re-run, a failed send *not* writing an `alert_logs` row, and the status guard blocking
+`replaced → expired`. Supabase security advisors are clean. Local `.env.local` is fully
+populated; the tables are empty.
+
+Remaining before clinical use:
+1. **Vercel env vars.** Only `CRON_SECRET` is set there. The five others
+   (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`,
+   `ALERT_FROM_EMAIL`, `ALERT_TO_EMAIL`) still need adding — the Vercel CLI is not installed,
+   so use the dashboard or `npm i -g vercel && vercel env add`.
+2. **Resend domain.** `ALERT_FROM_EMAIL` is Resend's shared `onboarding@resend.dev` sender,
+   which only delivers to the Resend account owner. Team-lead and any other recipient stay
+   undeliverable until a domain is verified with DKIM/SPF at resend.com/domains.
+3. **Rotate the pasted secrets.** The Supabase PAT and both Resend keys were pasted into
+   chat. The first Resend key belonged to a different account and has already been replaced
+   in `.env.local`, but it is still live on that account until revoked.
+
 Update this as you finish each step.
 
 ### Beyond the source map
