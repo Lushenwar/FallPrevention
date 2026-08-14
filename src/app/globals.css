@@ -1,11 +1,334 @@
 @import "tailwindcss";
 
-/* No dark-mode variant: these screens live under fluorescent light, one high-contrast
-   theme is easier to read than two mediocre ones. */
+/* ---------------------------------------------------------------------------
+   LTC Fall Prevention — "instrument panel" system.
+
+   Designed for a med cart under fluorescent light: bone-paper ground rather than
+   pure white (white blooms under glare), near-black ink, and ISO-signage status
+   colour. No dark variant — one high-contrast theme beats two mediocre ones.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-bone: #f5f2ec;
+  --color-paper: #fffdf8;
+  --color-ink: #14110e;
+  --color-ink-soft: #3d3730; /* 8.9:1 on bone — still passes AA at body size */
+  --color-rule: #c8c1b4;
+  --color-rule-hard: #14110e;
+
+  /* ISO 3864-ish safety semantics. Fills are light, ink is dark: legible washed out. */
+  --color-safe: #0b6b3f;
+  --color-safe-fill: #d8ece0;
+  --color-warn: #8a4b00;
+  --color-warn-fill: #fbe6c4;
+  --color-danger: #a41414;
+  --color-danger-fill: #f8d9d5;
+  --color-done: #3d3730;
+  --color-done-fill: #e4dfd5;
+
+  --color-signal: #14110e;
+  --color-hazard: #f2b705;
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "Cascadia Mono", monospace;
+
+  --radius-panel: 2px;
+}
+
 :root {
   color-scheme: light;
+
+  /* Motion tokens — 100 / 300 / 500 rule. */
+  --dur-micro: 100ms;
+  --dur-std: 300ms;
+  --dur-complex: 500ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Fluid, with guardrails: never below 16px on a tablet, never silly on a 27" cart screen. */
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
+}
+
+/* Tabular figures everywhere numbers are compared down a column. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* --- Focus -----------------------------------------------------------------
+   Keyboard-only, 3px, offset, and drawn in ink so it reads on every fill colour
+   we use (safe/warn/danger/done are all light). */
+:focus-visible {
+  outline: 3px solid var(--color-ink);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* --- Hazard stripe ---------------------------------------------------------
+   The one decorative element, and it earns its place: this is equipment-label
+   vocabulary, the same stripe that lives on the devices being tracked. */
+.hazard-rule {
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-hazard) 0 12px,
+    var(--color-ink) 12px 24px
+  );
+}
+
+@layer components {
+  /* --- Panels ---------------------------------------------------------------- */
+  .panel {
+    background-color: var(--color-paper);
+    border: 2px solid var(--color-rule-hard);
+    border-radius: var(--radius-panel);
+    container-type: inline-size;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    border-bottom: 2px solid var(--color-rule-hard);
+    background-color: var(--color-ink);
+    color: var(--color-paper);
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* --- Controls --------------------------------------------------------------
+     44px floor on every target; 48px when the pointer is coarse (gloved fingers). */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0.625rem 1.125rem;
+    border: 2px solid var(--color-ink);
+    border-radius: var(--radius-panel);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+      transform var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) linear,
+      color var(--dur-micro) linear;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .btn-primary {
+    background-color: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: #2f2a24;
+  }
+
+  .btn-secondary {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-bone);
+  }
+
+  .btn-danger {
+    background-color: var(--color-danger);
+    border-color: var(--color-danger);
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: #7f0f0f;
+  }
+
+  /* Still 40px tall — the row-level confirm buttons are smaller than the primary
+     actions but never drop below a reliable target. */
+  .btn-sm {
+    min-height: 40px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .panel-danger {
+    border-color: var(--color-danger);
+  }
+
+  @media (pointer: coarse) {
+    .btn {
+      min-height: 48px;
+    }
+  }
+
+  .field {
+    width: 100%;
+    min-height: 44px;
+    background-color: var(--color-paper);
+    border: 2px solid var(--color-ink-soft);
+    border-radius: var(--radius-panel);
+    padding: 0.5rem 0.75rem;
+    color: var(--color-ink);
+    font-size: 1.0625rem;
+    font-weight: 500;
+    transition: border-color var(--dur-micro) linear;
+  }
+  .field:hover {
+    border-color: var(--color-ink);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-fill);
+  }
+
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    margin-bottom: 0.3125rem;
+  }
+
+  /* --- Status pill -----------------------------------------------------------
+     Colour is never load-bearing on its own: each pill carries an icon whose
+     silhouette differs (check / triangle / octagon) plus a word. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border: 2px solid currentColor;
+    border-radius: var(--radius-panel);
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+}
+
+/* --- Motion ----------------------------------------------------------------
+   Entry only, transform+opacity only. Rows carry a stagger, but see
+   InventoryTable: anything expired is given delay 0 so the worst news is never
+   the last thing to arrive on screen. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise var(--dur-std) var(--ease-out) both;
+}
+.animate-pop {
+  animation: pop var(--dur-std) var(--ease-out) both;
+}
+
+/* Vestibular safety, and a med cart is no place for movement anyway. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- Responsive ledger -----------------------------------------------------
+   Container-driven, not viewport-driven: the ledger sits beside a form on a
+   cart screen and full-width on a tablet, and must adapt to its own box.
+   Below the break each row becomes a card. Nothing is hidden — only restacked. */
+.ledger thead {
+  display: none;
+}
+.ledger tr {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.375rem 0.875rem;
+  border-bottom: 2px solid var(--color-rule);
+  padding: 0.875rem 1rem;
+}
+.ledger td {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+}
+.ledger td::before {
+  content: attr(data-label);
+  flex: none;
+  width: 4.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+/* Card head: the two things that decide whether you act — which room, how bad. */
+.ledger td[data-label="Room"] {
+  grid-column: 1;
+  align-items: center;
+}
+.ledger td[data-label="Status"] {
+  grid-column: 2;
+  justify-content: flex-end;
+}
+.ledger td[data-label="Room"]::before,
+.ledger td[data-label="Status"]::before,
+.ledger td[data-label="Action"]::before {
+  display: none;
+}
+
+/* 60rem, not a device width: below this the six columns get cramped enough that
+   serials and dates start colliding, so cards read better. Found by resizing. */
+@container (min-width: 60rem) {
+  .ledger thead {
+    display: table-header-group;
+  }
+  .ledger tr {
+    display: table-row;
+    padding: 0;
+  }
+  .ledger td {
+    display: table-cell;
+    vertical-align: middle;
+    padding: 0.875rem 1rem;
+  }
+  .ledger td::before {
+    display: none;
+  }
 }
