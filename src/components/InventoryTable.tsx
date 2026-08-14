@@ -202,13 +202,14 @@ export default function InventoryTable({
                   </td>
                   <td data-label="Action">
                     {device.status === "replaced" ? null : confirming === device.id ? (
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-sm font-bold text-danger">
-                          Permanent — no undo.
-                        </span>
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        {/* "No undo" stays visible — the warning is the point of this step —
+                            but trimmed to fit the reserved column on a single line. */}
+                        <span className="font-mono text-xs font-bold text-danger">No undo</span>
                         <button
                           onClick={() => confirmReplace(device)}
                           disabled={isPending}
+                          title="Permanently mark this device replaced — this cannot be undone"
                           className="btn btn-danger btn-sm"
                         >
                           {isPending ? (
@@ -221,10 +222,10 @@ export default function InventoryTable({
                         <button
                           onClick={() => setConfirming(null)}
                           disabled={isPending}
+                          aria-label="Cancel — leave this device active"
                           className="btn btn-secondary btn-sm"
                         >
                           <X className="size-4" aria-hidden />
-                          Cancel
                         </button>
                       </span>
                     ) : (

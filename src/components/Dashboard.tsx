@@ -85,7 +85,6 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
         aria-labelledby="failure-title"
         className="animate-pop m-auto w-[min(32rem,calc(100vw-2rem))] border-4 border-danger bg-paper p-0 text-ink backdrop:bg-ink/70"
       >
-        <div className="hazard-rule" aria-hidden />
         <div className="p-6">
           <h2 id="failure-title" className="flex items-center gap-3 text-2xl font-bold text-danger">
             <OctagonAlert className="size-8 shrink-0" aria-hidden />
