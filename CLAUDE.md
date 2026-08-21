@@ -26,16 +26,22 @@ immediate re-run, a failed send *not* writing an `alert_logs` row, and the statu
 populated; the tables are empty.
 
 Remaining before clinical use:
-1. **Vercel env vars.** Only `CRON_SECRET` is set there. The five others
-   (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`,
-   `ALERT_FROM_EMAIL`, `ALERT_TO_EMAIL`) still need adding — the Vercel CLI is not installed,
-   so use the dashboard or `npm i -g vercel && vercel env add`.
+1. **Run the migration.** `supabase/schema.sql` has a MIGRATION block at the bottom
+   (2026-08-21): serial becomes nullable, categories narrow to three. It has **not** been
+   applied — there is no Supabase access token on this machine. Paste it into the SQL editor.
+   Until it runs, registering a device with a blank serial fails on the NOT NULL constraint.
 2. **Resend domain.** `ALERT_FROM_EMAIL` is Resend's shared `onboarding@resend.dev` sender,
-   which only delivers to the Resend account owner. Team-lead and any other recipient stay
-   undeliverable until a domain is verified with DKIM/SPF at resend.com/domains.
+   which only delivers to the Resend account owner (`fallpreventionst@gmail.com`). Any other
+   recipient stays undeliverable until a domain is verified with DKIM/SPF at resend.com/domains.
+   Accepted for now.
 3. **Rotate the pasted secrets.** The Supabase PAT and both Resend keys were pasted into
-   chat. The first Resend key belonged to a different account and has already been replaced
-   in `.env.local`, but it is still live on that account until revoked.
+   chat. `.env.local` holds the good Resend key and Vercel was re-synced from it on
+   2026-08-21, but the old key is still live on that other account until revoked.
+
+Done 2026-08-21: all six Vercel env vars are set for Production and Preview.
+`RESEND_API_KEY` and `CRON_SECRET` were rewritten from `.env.local`. Note that Vercel marks
+both **Sensitive**, so `vercel env pull` returns the literal `[SENSITIVE]` rather than the
+value — they cannot be diffed against local, only overwritten.
 
 Update this as you finish each step.
 
@@ -45,6 +51,7 @@ Update this as you finish each step.
 | --- | --- |
 | `supabase/schema.sql` | DDL, status-transition trigger, RLS (no delete policy = append-only) |
 | `src/lib/devices.ts` | Categories, shelf lives, date math, Zod schemas, traffic-light logic |
+| `src/lib/export.ts` | CSV export (Room, Type, Installed, Expires) — no dependency, Excel-safe |
 | `src/lib/devices.test.ts` | `node --test` cover for the date/status logic |
 | `src/components/Dashboard.tsx` | Client state shell: counts, failure modal, replace flow |
 | `src/app/error.tsx` | Loud failure page — never a blank screen on a med cart |
@@ -63,6 +70,18 @@ Update this as you finish each step.
 | `src/app/api/devices/route.ts` | GET/POST handler for device inventory |
 | `src/app/api/cron/check-expirations/route.ts` | Vercel Cron target for dispatching Resend emails |
 | `src/lib/supabaseClient.ts` | Typed database connection instance |
+
+### Device categories
+
+Three, all on a one-year shelf life: `bed_sensor`, `chair_alarm`, `floor_mat`. Grab bars and
+hip protectors were withdrawn 2026-08-21 and removed from both `CATEGORIES` and the DB check
+constraint. The migration **errors** rather than deleting if a withdrawn row still exists —
+the ledger is append-only, so re-categorise by hand instead.
+
+**Serial numbers are optional.** Labels rub off, and refusing the registration would leave the
+device untracked, which is the failure this system exists to prevent. A blank serial is stored
+`NULL`, never `""`: the live-unique index ignores NULLs, so unlabelled units coexist, whereas a
+second `""` would collide and block the save.
 
 ### Deferred
 
@@ -210,6 +229,7 @@ dashboard/
 
 **Exit Criterion:** A scheduled cron job reliably checks the database at 08:00 AM daily, aggregates expiring devices, and sends a single summary email via Resend without spamming duplicates.
 
+* **Alert tiers:** The email fires on the urgent tier only — expired, or expiring within `URGENT_DAYS` (7). Devices 8-14 days out (`NOTICE_DAYS`) are appended as a second "Also within 14 days" table so replacements can be ordered in one trip, but they never trigger a send and are never written to `alert_logs` — logging them would mute the alert that matters a week later. The dashboard traffic light keeps its own 30-day amber (`WARN_DAYS`).
 * **Specific Parts:** The 7-Day Throttle. The system must query `alert_logs` to ensure that if a device triggered an email on Monday, it does not trigger another email until the following Monday.
 * **Things to Watch Out For:** Aggregation. Never send 12 emails for 12 expiring devices; send 1 email with a 12-row HTML table. Ensure the Resend sending domain has verified DKIM/SPF, or strict healthcare IT spam filters will quarantine the alerts.
 

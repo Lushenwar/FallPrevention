@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addDays, daysUntil, DeviceUpdate, expiryFor, health, NewDevice } from "./devices.ts";
+import {
+  addDays,
+  CATEGORIES,
+  daysUntil,
+  DeviceUpdate,
+  expiryFor,
+  health,
+  NewDevice,
+} from "./devices.ts";
 
 test("addDays crosses months, years and leap days", () => {
   assert.equal(addDays("2026-08-13", 90), "2026-11-11");
@@ -14,8 +22,17 @@ test("daysUntil is signed", () => {
   assert.equal(daysUntil("2026-08-01", "2026-08-13"), -12);
 });
 
-test("bed sensor pads expire 90 days after install", () => {
-  assert.equal(expiryFor("bed_sensor", "2026-08-01"), "2026-10-30");
+test("every category in service is a one-year shelf life", () => {
+  assert.equal(expiryFor("bed_sensor", "2026-08-01"), "2027-08-01");
+  assert.equal(expiryFor("chair_alarm", "2026-08-01"), "2027-08-01");
+  assert.equal(expiryFor("floor_mat", "2026-08-01"), "2027-08-01");
+});
+
+test("only the three categories still in service are offered", () => {
+  // Grab bars and hip protectors were withdrawn; the DB check constraint agrees, so a
+  // stray value here would be a 400 at the boundary rather than a bad row.
+  assert.deepEqual(Object.keys(CATEGORIES), ["bed_sensor", "chair_alarm", "floor_mat"]);
+  assert.equal(NewDevice.safeParse({ category: "grab_bar" }).success, false);
 });
 
 test("health is the traffic light", () => {
@@ -37,7 +54,7 @@ test("health boundaries: 31 days is still green, expiry day itself is not yet re
 });
 
 test("every category has a shelf life that lands in the future", () => {
-  for (const category of ["bed_sensor", "floor_mat", "chair_alarm", "grab_bar", "hip_protector"] as const) {
+  for (const category of ["bed_sensor", "chair_alarm", "floor_mat"] as const) {
     assert.ok(expiryFor(category, "2026-08-13") > "2026-08-13", category);
   }
 });
@@ -73,4 +90,29 @@ test("NewDevice rejects junk payloads", () => {
     NewDevice.safeParse({ ...ok.data, install_date: "13/08/2026" }).success,
     false,
   );
+});
+
+test("serial number is optional, and blank means NULL rather than empty string", () => {
+  const base = {
+    device_name: "Bed Sensor Pad",
+    category: "bed_sensor",
+    room_number: "101-A",
+    install_date: "2026-08-13",
+    expiry_date: "2027-08-13",
+  };
+
+  // Omitted entirely, blank, and whitespace-only all land on NULL. That matters: the
+  // live-unique index ignores NULLs but would reject a second "".
+  for (const serial of [undefined, "", "   "]) {
+    const parsed = NewDevice.safeParse({ ...base, serial_number: serial });
+    assert.equal(parsed.success, true, JSON.stringify(serial));
+    assert.equal(parsed.data!.serial_number, null, JSON.stringify(serial));
+  }
+
+  const real = NewDevice.safeParse({ ...base, serial_number: "  BSP-77  " });
+  assert.equal(real.data!.serial_number, "BSP-77", "a real serial is kept, trimmed");
+
+  // The other two identifiers are still mandatory -- an unroomed device is untrackable.
+  assert.equal(NewDevice.safeParse({ ...base, room_number: "" }).success, false);
+  assert.equal(NewDevice.safeParse({ ...base, device_name: "" }).success, false);
 });

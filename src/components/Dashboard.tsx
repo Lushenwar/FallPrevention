@@ -1,10 +1,11 @@
 "use client";
 
-import { CircleCheck, OctagonAlert, TriangleAlert, X } from "lucide-react";
+import { CircleCheck, Download, OctagonAlert, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import DeviceForm from "@/components/DeviceForm";
 import InventoryTable from "@/components/InventoryTable";
 import { health, todayISO, type Device } from "@/lib/devices";
+import { csvFilename, toCsv } from "@/lib/export";
 
 export default function Dashboard({ initial }: { initial: Device[] }) {
   const [devices, setDevices] = useState(initial);
@@ -43,6 +44,17 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
     }
   }
 
+  // Built from what the table already holds, so the file always matches what is on screen.
+  // No endpoint, no dependency: a Blob and an anchor are the whole feature.
+  function exportCsv() {
+    const url = URL.createObjectURL(new Blob([toCsv(devices)], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = csvFilename(todayISO());
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const today = todayISO();
   const counts = devices.reduce(
     (acc, d) => {
@@ -71,6 +83,13 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
           Icon={OctagonAlert}
           tone={counts.expired > 0 ? "danger" : "neutral"}
         />
+      </div>
+
+      <div className="flex justify-end">
+        <button type="button" onClick={exportCsv} disabled={devices.length === 0} className="btn">
+          <Download className="size-5" aria-hidden />
+          Export to Excel ({devices.length})
+        </button>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[22rem_1fr] xl:grid-cols-[24rem_1fr]">

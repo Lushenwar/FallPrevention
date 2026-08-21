@@ -6,9 +6,10 @@ import { CATEGORIES, expiryFor, todayISO, type Category, type Device } from "@/l
 
 type FieldName = "device_name" | "serial_number" | "room_number";
 
-const REQUIRED: Record<FieldName, string> = {
+// Serial is absent on purpose: labels rub off, and refusing the registration would leave
+// the device untracked, which is worse than not knowing its serial.
+const REQUIRED: Partial<Record<FieldName, string>> = {
   device_name: "Enter the device name printed on the unit.",
-  serial_number: "Enter the serial number from the hardware label.",
   room_number: "Enter the room this device is installed in.",
 };
 
@@ -45,9 +46,10 @@ export default function DeviceForm({
   // Validate on blur, never per keystroke — nagging someone mid-serial is how you get
   // an abandoned form. Once a field has errored, it re-checks as they fix it.
   function validate(name: FieldName, value: string) {
+    const message = REQUIRED[name];
     setErrors((prev) => {
       const next = { ...prev };
-      if (value.trim() === "") next[name] = REQUIRED[name];
+      if (message && value.trim() === "") next[name] = message;
       else delete next[name];
       return next;
     });
@@ -69,7 +71,9 @@ export default function DeviceForm({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? `Save failed (${response.status})`);
       onCreated(payload.data);
-      setSaved(`${payload.data.serial_number} → room ${payload.data.room_number}`);
+      setSaved(
+        `${payload.data.serial_number ?? "no serial"} → room ${payload.data.room_number}`,
+      );
       setErrors({});
       form.reset();
       recalc({ installDate: todayISO() });
@@ -130,12 +134,13 @@ export default function DeviceForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             name="serial_number"
-            label="Serial number"
+            label="Serial number (optional)"
             error={errors.serial_number}
             onValidate={validate}
             maxLength={64}
             mono
-            hint="From the hardware label"
+            optional
+            hint="From the hardware label — leave blank if unreadable"
           />
           <Field
             name="room_number"
@@ -215,6 +220,7 @@ function Field({
   onValidate,
   hint,
   mono,
+  optional,
   ...input
 }: {
   name: FieldName;
@@ -223,6 +229,7 @@ function Field({
   onValidate: (name: FieldName, value: string) => void;
   hint?: string;
   mono?: boolean;
+  optional?: boolean;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
   const describedBy = [error ? `${name}-error` : null, hint ? `${name}-hint` : null]
     .filter(Boolean)
@@ -237,7 +244,7 @@ function Field({
         {...input}
         id={name}
         name={name}
-        required
+        required={!optional}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
         onBlur={(e) => onValidate(name, e.target.value)}

@@ -1,6 +1,14 @@
 import { Resend } from "resend";
-import { authorizeCron, dueForAlert, lapsed, summaryEmail, THROTTLE_DAYS } from "@/lib/alerts";
-import { addDays, todayISO, WARN_DAYS, type Device } from "@/lib/devices";
+import {
+  authorizeCron,
+  dueForAlert,
+  lapsed,
+  summaryEmail,
+  THROTTLE_DAYS,
+  upcoming,
+  urgent,
+} from "@/lib/alerts";
+import { addDays, NOTICE_DAYS, todayISO, type Device } from "@/lib/devices";
 import { supabase } from "@/lib/supabaseClient";
 
 const COLUMNS =
@@ -16,7 +24,7 @@ export async function GET(request: Request) {
     .from("devices")
     .select(COLUMNS)
     .eq("status", "active")
-    .lte("expiry_date", addDays(today, WARN_DAYS))
+    .lte("expiry_date", addDays(today, NOTICE_DAYS))
     .order("expiry_date", { ascending: true });
 
   if (error) return Response.json({ success: false, message: error.message }, { status: 500 });
@@ -33,7 +41,11 @@ export async function GET(request: Request) {
     .from("alert_logs")
     .select("device_id")
     .gte("sent_at", `${addDays(today, -THROTTLE_DAYS)}T00:00:00Z`);
-  const toAlert = dueForAlert(due, (recent ?? []).map((r) => r.device_id));
+  // Only the urgent tier is throttled and logged. The 8-14 day rows ride along for
+  // planning; they are never enough on their own to send, and never logged, so they
+  // still arrive as urgent in their own right a week later.
+  const toAlert = dueForAlert(urgent(due, today), (recent ?? []).map((r) => r.device_id));
+  const alsoComing = upcoming(due, today);
 
   if (toAlert.length === 0) {
     return Response.json({ success: true, alertedCount: 0, message: "Nothing due to alert on." });
@@ -51,7 +63,7 @@ export async function GET(request: Request) {
     from: ALERT_FROM_EMAIL,
     to: ALERT_TO_EMAIL.split(",").map((s) => s.trim()),
     subject: `[Fall Prevention] ${toAlert.length} device(s) need replacement — ${today}`,
-    html: summaryEmail(toAlert, today),
+    html: summaryEmail(toAlert, alsoComing, today),
   });
 
   if (sendError) {

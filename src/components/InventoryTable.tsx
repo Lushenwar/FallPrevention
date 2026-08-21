@@ -104,7 +104,7 @@ export default function InventoryTable({
         (category === "all" || d.category === category) &&
         (q === "" ||
           d.room_number.toLowerCase().includes(q) ||
-          d.serial_number.toLowerCase().includes(q) ||
+          (d.serial_number ?? "").toLowerCase().includes(q) ||
           d.device_name.toLowerCase().includes(q)),
     );
   }, [devices, query, category]);
@@ -235,7 +235,7 @@ export default function InventoryTable({
                     {CATEGORIES[device.category].label}
                   </td>
                   <td data-label="Serial" className="font-mono text-[0.9375rem] whitespace-nowrap">
-                    {device.serial_number}
+                    {device.serial_number ?? <span className="text-ink-soft">&mdash;</span>}
                   </td>
                   <td data-label="Expires">
                     <span className="font-mono whitespace-nowrap tnum">{device.expiry_date}</span>
@@ -360,7 +360,7 @@ export default function InventoryTable({
               </div>
               <div className="mt-1 flex gap-2">
                 <dt className="w-16 font-bold text-ink-soft">Serial</dt>
-                <dd>{confirming.serial_number}</dd>
+                <dd>{confirming.serial_number ?? "— (no serial recorded)"}</dd>
               </div>
             </dl>
 

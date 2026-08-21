@@ -25,10 +25,12 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    // A NULL serial cannot collide -- Postgres unique indexes ignore NULLs -- so this
+    // branch is unreachable for unlabelled units and the narrowing below is free.
     // 23505 = unique_violation: another device still in service already claims this serial
     // (a double-submit on flaky Wi-Fi, or a genuine mix-up). Replaced devices release their
     // claim, so this only fires against something actually on the floor.
-    if (error.code === "23505") {
+    if (error.code === "23505" && parsed.data.serial_number) {
       // "Already registered" is true but useless mid-round — say which room to go look at.
       const { data: holder } = await supabase
         .from("devices")
