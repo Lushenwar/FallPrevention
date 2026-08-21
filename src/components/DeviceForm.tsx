@@ -88,16 +88,14 @@ export default function DeviceForm({
     }
   }
 
-  const shelfLife = CATEGORIES[category].shelfLifeDays;
-
   return (
-    <form onSubmit={submit} noValidate className="panel h-fit">
+    <form onSubmit={submit} noValidate className="panel flex flex-col lg:min-h-0">
       <div className="panel-head">
         <ClipboardList className="size-4" aria-hidden />
         Register device
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-3 overflow-y-auto p-3">
         <div>
           <label className="label" htmlFor="category">
             Category
@@ -108,7 +106,6 @@ export default function DeviceForm({
             className="field"
             value={category}
             onChange={(e) => recalc({ category: e.target.value as Category })}
-            aria-describedby="category-hint"
           >
             {Object.entries(CATEGORIES).map(([value, { label: text, shelfLifeDays }]) => (
               <option key={value} value={value}>
@@ -116,9 +113,6 @@ export default function DeviceForm({
               </option>
             ))}
           </select>
-          <p id="category-hint" className="mt-1.5 font-mono text-xs font-semibold text-ink-soft">
-            {shelfLife}-day shelf life — expiry below is calculated from it.
-          </p>
         </div>
 
         <Field
@@ -134,13 +128,13 @@ export default function DeviceForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             name="serial_number"
-            label="Serial number (optional)"
+            label="Serial (optional)"
             error={errors.serial_number}
             onValidate={validate}
             maxLength={64}
             mono
             optional
-            hint="From the hardware label — leave blank if unreadable"
+            placeholder="Optional"
           />
           <Field
             name="room_number"
@@ -149,7 +143,7 @@ export default function DeviceForm({
             onValidate={validate}
             maxLength={20}
             mono
-            hint="e.g. 204-B"
+            placeholder="204-B"
           />
         </div>
 
@@ -180,11 +174,7 @@ export default function DeviceForm({
               className="field font-mono tnum"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
-              aria-describedby="expiry-hint"
             />
-            <p id="expiry-hint" className="mt-1.5 font-mono text-xs font-semibold text-ink-soft">
-              Auto-set. Override for a vendor exception.
-            </p>
           </div>
         </div>
 

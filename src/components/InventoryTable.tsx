@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   OctagonAlert,
   PackageCheck,
+  Download,
   Search,
   TriangleAlert,
   X,
@@ -74,9 +75,11 @@ const PILL = {
 export default function InventoryTable({
   devices,
   onReplace,
+  onExport,
 }: {
   devices: Device[];
   onReplace: (device: Device) => Promise<void>;
+  onExport: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -141,7 +144,7 @@ export default function InventoryTable({
   }
 
   return (
-    <section className="panel">
+    <section className="panel flex flex-col lg:min-h-0">
       <div className="panel-head">
         <Search className="size-4" aria-hidden />
         Inventory
@@ -149,9 +152,18 @@ export default function InventoryTable({
           {matches.length}
           <span className="text-paper/70"> / {devices.length}</span>
         </span>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={devices.length === 0}
+          className="btn btn-secondary btn-sm ml-1 tracking-normal normal-case"
+        >
+          <Download className="size-4" aria-hidden />
+          Export
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 border-b-2 border-rule-hard p-4">
+      <div className="flex shrink-0 flex-wrap items-end gap-3 border-b-2 border-rule-hard p-3">
         <div className="min-w-56 flex-1">
           <label className="label" htmlFor="ledger-search">
             Search
@@ -193,8 +205,9 @@ export default function InventoryTable({
         </div>
       </div>
 
-      {/* Wide content scrolls inside its own box; the page itself never scrolls sideways. */}
-      <div className="overflow-x-auto">
+      {/* Wide content scrolls inside its own box; the page itself never scrolls at all on
+          a desktop screen, so the rows -- not the window -- are what moves. */}
+      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         <table className="ledger w-full text-left">
           <thead>
             <tr className="border-b-2 border-rule-hard bg-bone">
@@ -266,16 +279,14 @@ export default function InventoryTable({
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-10 text-center">
+                <td colSpan={6} className="p-6 text-center">
                   <span className="mx-auto flex max-w-md flex-col items-center gap-3">
                     <Inbox className="size-10 text-ink-soft" aria-hidden />
                     <span className="text-xl font-bold">
                       {filtered ? "Nothing matches this filter" : "No devices on the ledger yet"}
                     </span>
                     <span className="font-medium text-ink-soft">
-                      {filtered
-                        ? "Clear the search or pick a different category — a device you expect to see may be filed under another room."
-                        : "Register the first unit with the panel on the left. Expiry is calculated for you from the category's shelf life."}
+                      {filtered ? "Try another room or category." : "Register the first unit on the left."}
                     </span>
                     {filtered && (
                       <button
@@ -298,7 +309,7 @@ export default function InventoryTable({
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t-2 border-rule-hard p-4">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t-2 border-rule-hard p-3">
         <button
           onClick={() => setPage(current - 1)}
           disabled={current === 0}
@@ -323,7 +334,7 @@ export default function InventoryTable({
       {/* Suppressing a warning about an irreversible action must not be a one-way door,
           so the way back is offered exactly when it is relevant. */}
       {skipWarning && (
-        <div className="flex flex-wrap items-center gap-2 border-t-2 border-rule px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t-2 border-rule px-4 py-2">
           <TriangleAlert className="size-4 shrink-0 text-warn" aria-hidden />
           <span className="text-sm font-semibold">Replacement warnings are off.</span>
           <button onClick={restoreWarning} className="text-sm font-bold underline underline-offset-2">

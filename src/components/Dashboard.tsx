@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheck, Download, OctagonAlert, TriangleAlert, X } from "lucide-react";
+import { CircleCheck, OctagonAlert, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import DeviceForm from "@/components/DeviceForm";
 import InventoryTable from "@/components/InventoryTable";
@@ -67,7 +67,7 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
   );
 
   return (
-    <main className="mx-auto w-full max-w-[90rem] flex-1 space-y-5 p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-[90rem] flex-1 space-y-3 p-3 sm:p-4 lg:min-h-0 lg:overflow-hidden">
       {/* Readout strip — the one thing that must be legible from across the corridor. */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Readout label="Devices tracked" value={devices.length} Icon={CircleCheck} tone="neutral" />
@@ -85,16 +85,9 @@ export default function Dashboard({ initial }: { initial: Device[] }) {
         />
       </div>
 
-      <div className="flex justify-end">
-        <button type="button" onClick={exportCsv} disabled={devices.length === 0} className="btn">
-          <Download className="size-5" aria-hidden />
-          Export to Excel ({devices.length})
-        </button>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[22rem_1fr] xl:grid-cols-[24rem_1fr]">
+      <div className="grid gap-3 lg:min-h-0 lg:grid-cols-[21rem_1fr] xl:grid-cols-[23rem_1fr]">
         <DeviceForm onCreated={(device) => setDevices((c) => [device, ...c])} onError={setError} />
-        <InventoryTable devices={devices} onReplace={replace} />
+        <InventoryTable devices={devices} onReplace={replace} onExport={exportCsv} />
       </div>
 
       {/* Failures must be acknowledged, never swallowed — a missed save is a missed replacement. */}

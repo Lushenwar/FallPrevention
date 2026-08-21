@@ -28,8 +28,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`h-full antialiased ${plexSans.variable} ${plexMono.variable}`}>
-      <body className="flex min-h-full flex-col">
-        <header className="bg-ink text-paper">
+      <body className="flex min-h-full flex-col lg:h-dvh lg:overflow-hidden">
+        <header className="shrink-0 bg-ink text-paper">
           <div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
             <ShieldCheck className="size-7 shrink-0 text-hazard" aria-hidden />
             <h1 className="text-lg font-bold tracking-[0.14em] uppercase sm:text-xl">
