@@ -23,8 +23,14 @@ export type Device = {
   status: Status;
 };
 
-/** Days inside which an active device counts as "expiring soon". */
+/** Days inside which an active device counts as "expiring soon" on the dashboard. */
 export const WARN_DAYS = 30;
+
+/** Alerting tiers. URGENT is what fires an email and gets throttle-logged; NOTICE rides
+ *  along in that email as planning context and is never logged, so a device muted at 14
+ *  days would not go quiet at 7 — the tier that matters is the one that is tracked. */
+export const URGENT_DAYS = 7;
+export const NOTICE_DAYS = 14;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 

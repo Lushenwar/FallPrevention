@@ -210,6 +210,7 @@ dashboard/
 
 **Exit Criterion:** A scheduled cron job reliably checks the database at 08:00 AM daily, aggregates expiring devices, and sends a single summary email via Resend without spamming duplicates.
 
+* **Alert tiers:** The email fires on the urgent tier only — expired, or expiring within `URGENT_DAYS` (7). Devices 8-14 days out (`NOTICE_DAYS`) are appended as a second "Also within 14 days" table so replacements can be ordered in one trip, but they never trigger a send and are never written to `alert_logs` — logging them would mute the alert that matters a week later. The dashboard traffic light keeps its own 30-day amber (`WARN_DAYS`).
 * **Specific Parts:** The 7-Day Throttle. The system must query `alert_logs` to ensure that if a device triggered an email on Monday, it does not trigger another email until the following Monday.
 * **Things to Watch Out For:** Aggregation. Never send 12 emails for 12 expiring devices; send 1 email with a 12-row HTML table. Ensure the Resend sending domain has verified DKIM/SPF, or strict healthcare IT spam filters will quarantine the alerts.
 
