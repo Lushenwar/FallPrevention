@@ -63,7 +63,7 @@ function table(devices: Device[], today: string): string {
       return `<tr>
         <td style="${CELL};font-weight:700">${esc(d.room_number)}</td>
         <td style="${CELL}">${CATEGORIES[d.category].label}</td>
-        <td style="${CELL};font-family:monospace">${esc(d.serial_number)}</td>
+        <td style="${CELL};font-family:monospace">${d.serial_number ? esc(d.serial_number) : "&mdash;"}</td>
         <td style="${CELL}">${esc(d.expiry_date)}</td>
         <td style="${CELL};color:${days < 0 ? "#b91c1c" : "#b45309"};font-weight:700">${state}</td>
       </tr>`;

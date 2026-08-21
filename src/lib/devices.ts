@@ -2,11 +2,9 @@ import { z } from "zod";
 
 /** Shelf life per category, in days. Tune these — vendors change spec sheets. */
 export const CATEGORIES = {
-  bed_sensor: { label: "Bed Sensor Pad", shelfLifeDays: 90 },
+  bed_sensor: { label: "Bed Sensor Pad", shelfLifeDays: 365 },
+  chair_alarm: { label: "Chair Alarm", shelfLifeDays: 365 },
   floor_mat: { label: "Floor Pressure Mat", shelfLifeDays: 365 },
-  chair_alarm: { label: "Chair Alarm", shelfLifeDays: 180 },
-  grab_bar: { label: "Grab Bar", shelfLifeDays: 730 },
-  hip_protector: { label: "Hip Protector", shelfLifeDays: 180 },
 } as const;
 
 export type Category = keyof typeof CATEGORIES;
@@ -15,7 +13,7 @@ export type Status = "active" | "replaced" | "expired";
 export type Device = {
   id: string;
   device_name: string;
-  serial_number: string;
+  serial_number: string | null;
   category: Category;
   room_number: string;
   install_date: string;
@@ -36,7 +34,14 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
 export const NewDevice = z.object({
   device_name: z.string().trim().min(1).max(120),
-  serial_number: z.string().trim().min(1).max(64),
+  // ponytail: a blank serial stores NULL, never "". Postgres unique indexes ignore NULLs,
+  // so any number of unlabelled units coexist while real serials stay unique on the floor.
+  // An empty string would collide with the second one and block the registration.
+  serial_number: z
+    .string()
+    .max(64)
+    .optional()
+    .transform((v) => v?.trim() || null),
   category: z.enum(Object.keys(CATEGORIES) as [Category, ...Category[]]),
   room_number: z.string().trim().min(1).max(20),
   install_date: isoDate,
